@@ -47,3 +47,62 @@
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* ── Innsaei Communication: Resolume Arena panel chrome ─────────────────── */
+.rc-root {
+  --rc-bg: #1b1b1b;
+  --rc-surface: #262626;
+  --rc-header: #303030;
+  --rc-field: #1a1a1a;
+  --rc-button: #333333;
+  --rc-line: #3c3c3c;
+  --rc-hover: #383838;
+  --rc-text: #d6d6d6;
+  --rc-text-dim: #8a8a8a;
+  --rc-accent: #f0a11e;
+  --rc-unread: #25d366;
+  --rc-ok: #25d366;
+  --rc-warn: #e2a33a;
+  --rc-in: #232323;
+  --rc-out: #1f2b23;
+
+  background: var(--rc-bg);
+  color: var(--rc-text);
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+
+.rc-root .rc-panel {
+  background: var(--rc-surface);
+}
+
+.rc-root .rc-outline {
+  border: 1px solid var(--rc-line);
+}
+
+.rc-root .rc-header {
+  background: var(--rc-header);
+  border-bottom: 1px solid var(--rc-line);
+  padding: 0.3rem 0.5rem;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--rc-text);
+}
+
+.rc-root ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.rc-root ::-webkit-scrollbar-track {
+  background: var(--rc-field);
+}
+
+.rc-root ::-webkit-scrollbar-thumb {
+  background: #4a4a4a;
+  border: 2px solid var(--rc-field);
+}
+
+.rc-root ::-webkit-scrollbar-thumb:hover {
+  background: #5c5c5c;
+}
