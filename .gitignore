@@ -8,3 +8,4 @@ coverage/
 !.env.example
 out/
 wire.config.json
+wire-api-dump.json

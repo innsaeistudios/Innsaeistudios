@@ -97,9 +97,24 @@ Exports land as DXV3 `.mov`, ready to drop straight into Arena. Keep the source
 material in `out/sources/` — re-running the ffmpeg pass at a different canvas
 size costs nothing, where re-generating costs an API call.
 
-## Still open
+## Generating the patch instead of building it
 
-The `.wired` format isn't publicly documented, so the patch above is built by
-hand once rather than generated. Drop a saved `.wired` into `docs/samples/` and
-the build step can be automated — `wire-gen` would then write one patch per
-slot with the resource path already filled in.
+The `.wired` format is not documented, so writing one directly is off the
+table. But Wire ships a **REST API**, and API v2 can create, connect and manage
+nodes — which is a supported way to build the patch programmatically, and a
+better one than reverse-engineering a file format.
+
+Wire serves it on port **8081** by default (Arena and Avenue use 8080), once
+the webserver is enabled in Preferences → Webserver.
+
+Step one is to record what the API actually offers on your install:
+
+```bash
+npm run wire:api                 # with Wire running
+```
+
+It probes the v2 and v1 endpoints, prints what responds, and writes
+`wire-api-dump.json`. With that dump the patch builder can be written against
+the real endpoint shapes — create the resource node, the fade chain and the
+output, connect them, and save — so a patch per slot comes out with the clip
+path already filled in.

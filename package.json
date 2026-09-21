@@ -10,7 +10,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "wire": "tsx tools/wire-gen/index.ts",
-    "test": "node --import tsx --test tools/wire-gen/test/*.test.ts"
+    "test": "node --import tsx --test tools/wire-gen/test/*.test.ts",
+    "wire:api": "tsx tools/wire-gen/wire-api.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

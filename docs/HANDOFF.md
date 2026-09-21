@@ -21,12 +21,12 @@ Typecheck (`npm run lint`) and `npm run build` both pass.
 
 ## Open — needs the laptop
 
-1. **Read a real `.wired`.** They are in `~/Documents/Wire/Patches`. Check
-   whether the format is XML, JSON, zip or proprietary binary:
-   `head -c 400 <file>.wired | xxd | head`. If it is text, `wire-gen` can emit
-   a finished patch per slot with the resource path filled in. If it is binary,
-   the hand-built patch in `docs/WIRE_PATCH.md` stays the workflow — say so
-   rather than reverse-engineering it.
+1. **Build the patch through Wire's REST API.** Wire's API v2 creates and
+   connects nodes, so the patch can be generated rather than hand-built — and
+   the undocumented `.wired` format never has to be cracked. Run
+   `npm run wire:api` with Wire open (port 8081, webserver enabled in
+   Preferences → Webserver) to dump the endpoint shapes, then write the builder
+   in `tools/wire-gen/` against them.
 2. ~~Verify the ffmpeg conform pass.~~ **Done** — see "Verified" below. Still
    worth one run against real generated footage rather than a test pattern.
 3. **Confirm the patch side in Wire 7.22+.** The video resource slot, and
