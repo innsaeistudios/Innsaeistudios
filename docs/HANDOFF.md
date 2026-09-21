@@ -8,8 +8,8 @@ Resolume. On the laptop both become possible, which is what the open items need.
 
 - `tools/wire-gen/` — CLI. Keys per project from env vars, round-robin across
   projects at `concurrency`, per-slot model/size/length resolution, `--slots`,
-  `--dry-run`. Verified end to end as a dry run; **never run against a real key
-  or a real ffmpeg yet**.
+  `--dry-run`. Verified end to end as a dry run; **never run against a real
+  provider key yet**.
 - `src/lib/wire/` — provider catalog, generation adapters (Google, OpenAI,
   fal.ai, Replicate, Luma), loop/fit/conform recipe builder. Runs in Node and
   in the browser.
@@ -27,17 +27,30 @@ Typecheck (`npm run lint`) and `npm run build` both pass.
    a finished patch per slot with the resource path filled in. If it is binary,
    the hand-built patch in `docs/WIRE_PATCH.md` stays the workflow — say so
    rather than reverse-engineering it.
-2. **Verify the ffmpeg conform pass actually runs.** The filter graph in
-   `src/lib/wire/render.ts` (`buildVideoFilterGraph`, `buildStillFilterGraph`)
-   has never been executed — it was written against ffmpeg's documented filter
-   behaviour, not tested. Run one clip through and check: the loop point is
-   invisible, alpha survives into ProRes 4444, the fit padding is transparent
-   and not black. Expect to correct it.
+2. ~~Verify the ffmpeg conform pass.~~ **Done** — see "Verified" below. Still
+   worth one run against real generated footage rather than a test pattern.
 3. **Confirm the patch side in Wire 7.22+.** The video resource slot, and
    whether the node names in `docs/WIRE_PATCH.md` step 4 match the installed
    build. Correct the doc from what is actually there.
 4. **Confirm the Video Exporter round trip** — DXV, normal, alpha on,
    1920×1080 — and that the result loops cleanly in Arena.
+
+## Verified against real ffmpeg
+
+`npm test` runs the conform pass through ffmpeg and checks the output, not the
+command string. On ffmpeg 6.1.1 with a 5s 4:3 test pattern into a 1920×1080
+canvas:
+
+- duration comes out at exactly `clip - fadeSeconds` (135 frames @30fps),
+- the output is ProRes 4444 `yuva444p12le`, alpha intact,
+- fit padding measures alpha 0 (transparent), picture area 255,
+- the loop wrap scores 19.9dB PSNR against the first frame, versus 20.5 and
+  21.5 for ordinary frame steps and 17.2 for unrelated frames — i.e. the wrap
+  is an ordinary frame step, not a cut. The loop is seamless.
+- the still path holds for `stillDurationSeconds` with an alpha fade.
+
+Note that ffmpeg 6.1.1 has **no `dxv` encoder at all**, which is the second
+reason DXV3 comes from Wire's exporter rather than from here.
 
 ## Not yet proven
 

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "wire": "tsx tools/wire-gen/index.ts"
+    "wire": "tsx tools/wire-gen/index.ts",
+    "test": "node --import tsx --test tools/wire-gen/test/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
