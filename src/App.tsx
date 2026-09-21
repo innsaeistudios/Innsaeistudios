@@ -13,6 +13,7 @@ import PluginDetail from "./pages/PluginDetail";
 import Dashboard from "./pages/Dashboard";
 import Contact from "./pages/Contact";
 import Login from "./pages/Login";
+import WirePatch from "./pages/WirePatch";
 import { useEffect } from "react";
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/wire" element={<WirePatch />} />
         </Routes>
         <Footer />
       </div>
