@@ -1,0 +1,32 @@
+{
+  "resourcesDir": "./out/wire-resources",
+  "sourcesDir": "./out/sources",
+  "concurrency": 4,
+  "ffmpegPath": "ffmpeg",
+
+  "projects": [
+    { "id": "prj_jalwa", "name": "jalwa-main", "providerId": "google", "apiKeyEnv": "GOOGLE_API_KEY" },
+    { "id": "prj_fal", "name": "jalwa-fal", "providerId": "fal", "apiKeyEnv": "FAL_KEY" },
+    { "id": "prj_club", "name": "club-openai", "providerId": "openai", "apiKeyEnv": "OPENAI_API_KEY" }
+  ],
+
+  "render": {
+    "width": 1920,
+    "height": 1080,
+    "scaleMode": "fit",
+    "fps": 60,
+    "fadeSeconds": 0.5,
+    "stillDurationSeconds": 4,
+    "alpha": true,
+    "quality": "normal",
+    "codec": "prores4444"
+  },
+
+  "osc": { "enabled": false, "host": "127.0.0.1", "port": 7000, "clipAddress": "/wire/clip" },
+
+  "clips": [
+    { "slot": 1, "prompt": "slow drifting chrome liquid over black, macro, high contrast", "modality": "video", "duration": 8 },
+    { "slot": 2, "prompt": "hand-drawn ink mandala blooming, white on black, loopable", "modality": "video" },
+    { "slot": 3, "prompt": "isolated neon temple arch, transparent background", "modality": "image", "project": "club-openai" }
+  ]
+}

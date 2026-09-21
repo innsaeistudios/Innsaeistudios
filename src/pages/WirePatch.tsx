@@ -9,11 +9,20 @@ import {
 import {
   loadProjects, maskKey, newProjectId, saveProjects, type ApiProject,
 } from "../lib/wire/keyVault";
-import { generate } from "../lib/wire/generate";
+import { assetObjectUrl, generate } from "../lib/wire/generate";
 import {
   RESOLUME_PRESET, SIZE_PRESETS, buildBatchScript, buildManifest, buildRenderJob,
-  downloadText, type RenderJob, type RenderSettings,
+  type RenderJob, type RenderSettings,
 } from "../lib/wire/render";
+
+function downloadText(filename: string, contents: string, mime: string): void {
+  const url = URL.createObjectURL(new Blob([contents], { type: mime }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 const SLOT_COUNT = 12;
 const MAX_PARALLEL = 4;
@@ -126,12 +135,12 @@ export default function WirePatch() {
             slot: slot.slot,
             label: slot.prompt.slice(0, 40),
             modality: slot.modality,
-            input: asset.sourceUrl ?? `slot_${slot.slot}_source.${slot.modality === "video" ? "mp4" : "png"}`,
+            input: asset.remoteUrl ?? `slot_${slot.slot}_source.${slot.modality === "video" ? "mp4" : "png"}`,
             durationSeconds: slot.duration,
           }, settings)
         : undefined;
       setSlots((prev) => prev.map((s) => (s.id === slot.id
-        ? { ...s, status: "ready", note: renderJob ? `loop + DXV3 recipe ready` : "generated", assetUrl: asset.url, sourceUrl: asset.sourceUrl, renderJob }
+        ? { ...s, status: "ready", note: renderJob ? "loop recipe ready" : "generated", assetUrl: assetObjectUrl(asset), sourceUrl: asset.remoteUrl, renderJob }
         : s)));
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -188,8 +197,8 @@ export default function WirePatch() {
   const exportBatch = () => {
     const jobs = readySlots.map((s) => s.renderJob!);
     if (!jobs.length) return;
-    downloadText("innsaei_dxv3_batch.sh", buildBatchScript(jobs), "text/x-shellscript");
-    downloadText("innsaei_dxv3_manifest.json", buildManifest(jobs), "application/json");
+    downloadText("innsaei_wire_conform.sh", buildBatchScript(jobs), "text/x-shellscript");
+    downloadText("innsaei_wire_manifest.json", buildManifest(jobs), "application/json");
   };
 
   const useScreenSize = () =>
@@ -376,8 +385,8 @@ export default function WirePatch() {
                 className="bg-surface-container text-xs font-mono p-2 border border-white/5 focus:outline-none"
                 aria-label="Quality"
               >
-                <option value="normal">DXV3 normal</option>
-                <option value="high">DXV3 high</option>
+                <option value="normal">normal quality</option>
+                <option value="high">high quality</option>
               </select>
             </div>
 
@@ -548,7 +557,7 @@ export default function WirePatch() {
                 <Play size={14} /> Generate slot
               </button>
               <span className="text-[10px] font-mono text-gray-500">
-                {settings.width}×{settings.height} · {settings.scaleMode} · DXV3 {settings.quality}
+                {settings.width}×{settings.height} · {settings.scaleMode} · Wire DXV3 {settings.quality}
                 {settings.alpha ? " + alpha" : ""} · {settings.fadeSeconds.toFixed(2)}s loop fade
               </span>
             </div>
@@ -570,9 +579,11 @@ export default function WirePatch() {
           <p className="text-[11px] text-gray-600 leading-relaxed max-w-3xl">
             Generation runs straight from your browser to the provider, up to {MAX_PARALLEL} clips at a time,
             fanned out across every enabled API project so several accounts share the load.
-            Providers that block browser calls need a proxy URL on their project. DXV3 encoding happens
-            outside the browser: export the batch to get a manifest plus a ready-to-run ffmpeg script
-            (use Resolume Alley for true DXV3 Pro output).
+            Providers that block browser calls need a proxy URL on their project. Export the batch for a
+            manifest plus an ffmpeg script that conforms each clip into a looping, canvas-fitted
+            ProRes 4444 — that is what the Wire patch's video resource slot loads. DXV3 with alpha is
+            written by Wire's own Video Exporter. For an unattended show machine run
+            <span className="font-mono text-gray-500"> npm run wire </span> instead of this page.
           </p>
         </section>
       </div>

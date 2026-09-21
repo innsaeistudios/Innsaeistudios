@@ -1,10 +1,13 @@
 /**
- * Render stage: turn a generated clip into a Resolume-ready DXV3 loop.
+ * Conform stage: turn a raw generation into the looping, canvas-fitted clip
+ * that a Wire patch's resource slot loads.
  *
- * A browser cannot encode DXV, so this builds the exact recipe instead — an
- * ffmpeg command per clip plus a batch manifest an Alley / worker run can
- * consume. The filter graph does the auto-loop crossfade, the alpha-safe fit
- * into the target canvas, and nothing else.
+ * DXV3 itself is written by Wire's own Video Exporter (codec DXV, quality
+ * normal/high, with or without alpha, any resolution) — nothing here or in a
+ * browser encodes DXV. So the default target is a ProRes 4444 intermediate
+ * that carries alpha losslessly into Wire. "dxv3" stays available for the case
+ * where you are skipping Wire and have an ffmpeg build with the dxv encoder,
+ * which currently writes DXT1 only and therefore drops alpha.
  */
 
 import type { Modality } from "./providers";
@@ -22,7 +25,11 @@ export interface RenderSettings {
   stillDurationSeconds: number;
   alpha: boolean;
   quality: "normal" | "high";
-  codec: "dxv3";
+  /**
+   * "prores4444" — alpha-safe intermediate for the Wire resource slot (default).
+   * "dxv3" — direct ffmpeg dxv encode; no alpha, needs a dxv-capable build.
+   */
+  codec: "prores4444" | "dxv3";
 }
 
 export const RESOLUME_PRESET: RenderSettings = {
@@ -34,7 +41,7 @@ export const RESOLUME_PRESET: RenderSettings = {
   stillDurationSeconds: 4,
   alpha: true,
   quality: "normal",
-  codec: "dxv3",
+  codec: "prores4444",
 };
 
 /** Common house sizes, plus whatever screen the room actually has. */
@@ -103,11 +110,20 @@ export function buildStillFilterGraph(s: RenderSettings): string {
   );
 }
 
+/** Encoder flags as argv, for spawning ffmpeg directly. */
+export function encoderArgs(s: RenderSettings): string[] {
+  return codecFlags(s).split(" ").filter(Boolean);
+}
+
 function codecFlags(s: RenderSettings): string {
-  // ffmpeg's dxv encoder: dxt5 carries alpha, dxt5-ycocg is the higher-quality
-  // opaque variant Resolume calls "DXV3 normal / high".
-  const format = s.alpha ? "dxt5" : s.quality === "high" ? "dxt5-ycocg" : "dxt1";
-  return `-c:v dxv -format ${format} -pix_fmt ${s.alpha ? "rgba" : "yuva420p"} -r ${s.fps}`;
+  if (s.codec === "dxv3") {
+    // ffmpeg's dxv encoder is DXT1 only today — opaque. Real DXV3 + alpha comes
+    // out of Wire's Video Exporter instead.
+    return `-c:v dxv -pix_fmt rgb0 -r ${s.fps}`;
+  }
+  // ProRes 4444 (profile 4) keeps the alpha channel intact for Wire to read.
+  return `-c:v prores_ks -profile:v ${s.alpha ? 4 : 3} -pix_fmt ${s.alpha ? "yuva444p10le" : "yuv422p10le"} ` +
+    `-quant_mat ${s.quality === "high" ? "hq" : "auto"} -alpha_bits ${s.alpha ? 16 : 0} -r ${s.fps}`;
 }
 
 function safeName(label: string): string {
@@ -126,7 +142,8 @@ export function buildRenderJob(clip: {
   const filterGraph = isVideo
     ? buildVideoFilterGraph(settings, clip.durationSeconds ?? 5)
     : buildStillFilterGraph(settings);
-  const output = `${String(clip.slot).padStart(2, "0")}_${safeName(clip.label)}_${settings.width}x${settings.height}_dxv3.mov`;
+  const suffix = settings.codec === "dxv3" ? "dxv3" : "loop";
+  const output = `${String(clip.slot).padStart(2, "0")}_${safeName(clip.label)}_${settings.width}x${settings.height}_${suffix}.mov`;
   const loopIn = isVideo ? "" : "-loop 1 ";
   const command =
     `ffmpeg -y ${loopIn}-i "${clip.input}" ` +
@@ -140,8 +157,9 @@ export function buildRenderJob(clip: {
 export function buildBatchScript(jobs: RenderJob[]): string {
   return [
     "#!/usr/bin/env bash",
-    "# Innsaei Wire Patch — DXV3 batch render",
-    "# Requires an ffmpeg build with the dxv encoder (resolume.com/download/alley for DXV3 Pro).",
+    "# Innsaei Wire Patch — conform generated clips into Wire resource slots",
+    "# Output is a looping, canvas-fitted ProRes 4444 (alpha kept). Load it into the",
+    "# patch's video resource slot, then export DXV3 from Wire's Video Exporter.",
     "set -euo pipefail",
     "",
     ...jobs.flatMap((j) => [`# slot ${j.slot} — ${j.label}`, j.command, ""]),
@@ -163,21 +181,19 @@ export function buildManifest(jobs: RenderJob[]): string {
         output: j.output,
         loop: { seamless: true, fadeSeconds: j.settings.fadeSeconds },
         canvas: { width: j.settings.width, height: j.settings.height, scaleMode: j.settings.scaleMode },
-        codec: { name: "DXV3", alpha: j.settings.alpha, quality: j.settings.quality, fps: j.settings.fps },
+        codec: { name: j.settings.codec, alpha: j.settings.alpha, quality: j.settings.quality, fps: j.settings.fps },
+        wireExport: {
+          codec: "DXV",
+          quality: j.settings.quality,
+          alpha: j.settings.alpha,
+          width: j.settings.width,
+          height: j.settings.height,
+          fps: j.settings.fps,
+        },
         command: j.command,
       })),
     },
     null,
     2,
   );
-}
-
-export function downloadText(filename: string, contents: string, mime = "text/plain"): void {
-  const blob = new Blob([contents], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
 }

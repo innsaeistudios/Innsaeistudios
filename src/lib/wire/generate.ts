@@ -23,12 +23,19 @@ export interface GenerateRequest {
 }
 
 export interface GeneratedAsset {
-  /** Blob URL or remote URL the clip slot can preview. */
-  url: string;
   mime: string;
   modality: Modality;
-  /** Remote URL when the provider hands one back — the render job needs it. */
-  sourceUrl?: string;
+  /** Set when the provider hands back a URL we can hand straight to Wire / a player. */
+  remoteUrl?: string;
+  /** Set when the provider returned the file itself. Written to disk by the CLI. */
+  bytes?: Uint8Array;
+}
+
+/** Browser helper: something an <img>/<video> can point at. */
+export function assetObjectUrl(asset: GeneratedAsset): string {
+  if (asset.remoteUrl) return asset.remoteUrl;
+  if (asset.bytes) return URL.createObjectURL(new Blob([asset.bytes as BlobPart], { type: asset.mime }));
+  throw new Error("asset has neither bytes nor a url");
 }
 
 class GenerationError extends Error {}
@@ -74,8 +81,17 @@ async function poll<T>(
   }
 }
 
-function dataUrl(b64: string, mime: string): string {
-  return `data:${mime};base64,${b64}`;
+function decodeBase64(b64: string): Uint8Array {
+  const binary = typeof atob === "function"
+    ? atob(b64)
+    : Buffer.from(b64, "base64").toString("binary");
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
+async function bodyBytes(res: Response): Promise<Uint8Array> {
+  return new Uint8Array(await res.arrayBuffer());
 }
 
 /* ------------------------------------------------------------------ Google */
@@ -99,7 +115,7 @@ async function google(req: GenerateRequest): Promise<GeneratedAsset> {
     const json = await res.json();
     const b64 = json?.predictions?.[0]?.bytesBase64Encoded;
     if (!b64) throw new GenerationError("no image in response");
-    return { url: dataUrl(b64, "image/png"), mime: "image/png", modality: "image" };
+    return { bytes: decodeBase64(b64), mime: "image/png", modality: "image" };
   }
 
   const start = await fetch(endpoint(req.project, base, `/v1beta/models/${req.modelId}:predictLongRunning`), {
@@ -130,8 +146,7 @@ async function google(req: GenerateRequest): Promise<GeneratedAsset> {
   // The file endpoint needs the key too; fetch it so the slot can play it back.
   const file = await fetch(`${uri}${uri.includes("?") ? "&" : "?"}key=${encodeURIComponent(key)}`, { signal: req.signal });
   if (!file.ok) await readError(file);
-  const blob = await file.blob();
-  return { url: URL.createObjectURL(blob), mime: blob.type || "video/mp4", modality: "video", sourceUrl: uri };
+  return { bytes: await bodyBytes(file), mime: file.headers.get("content-type") ?? "video/mp4", modality: "video" };
 }
 
 /* ------------------------------------------------------------------ OpenAI */
@@ -156,8 +171,8 @@ async function openai(req: GenerateRequest): Promise<GeneratedAsset> {
     if (!res.ok) await readError(res);
     const json = await res.json();
     const item = json?.data?.[0];
-    if (item?.b64_json) return { url: dataUrl(item.b64_json, "image/png"), mime: "image/png", modality: "image" };
-    if (item?.url) return { url: item.url, mime: "image/png", modality: "image", sourceUrl: item.url };
+    if (item?.b64_json) return { bytes: decodeBase64(item.b64_json), mime: "image/png", modality: "image" };
+    if (item?.url) return { remoteUrl: item.url, mime: "image/png", modality: "image" };
     throw new GenerationError("no image in response");
   }
 
@@ -183,8 +198,7 @@ async function openai(req: GenerateRequest): Promise<GeneratedAsset> {
 
   const content = await fetch(endpoint(req.project, base, `/v1/videos/${job.id}/content`), { headers: auth, signal: req.signal });
   if (!content.ok) await readError(content);
-  const blob = await content.blob();
-  return { url: URL.createObjectURL(blob), mime: blob.type || "video/mp4", modality: "video" };
+  return { bytes: await bodyBytes(content), mime: content.headers.get("content-type") ?? "video/mp4", modality: "video" };
 }
 
 /* --------------------------------------------------------------------- fal */
@@ -222,8 +236,7 @@ async function fal(req: GenerateRequest): Promise<GeneratedAsset> {
   const url: string | undefined = out?.images?.[0]?.url ?? out?.video?.url ?? out?.image?.url;
   if (!url) throw new GenerationError("no asset in response");
   return {
-    url,
-    sourceUrl: url,
+    remoteUrl: url,
     mime: req.modality === "image" ? "image/png" : "video/mp4",
     modality: req.modality,
   };
@@ -257,8 +270,7 @@ async function replicate(req: GenerateRequest): Promise<GeneratedAsset> {
   const url = Array.isArray(output) ? (output[0] as string) : (output as string);
   if (typeof url !== "string") throw new GenerationError("no asset in response");
   return {
-    url,
-    sourceUrl: url,
+    remoteUrl: url,
     mime: req.modality === "image" ? "image/png" : "video/mp4",
     modality: req.modality,
   };
@@ -293,8 +305,7 @@ async function luma(req: GenerateRequest): Promise<GeneratedAsset> {
 
   if (!url) throw new GenerationError("no asset in response");
   return {
-    url,
-    sourceUrl: url,
+    remoteUrl: url,
     mime: req.modality === "image" ? "image/png" : "video/mp4",
     modality: req.modality,
   };
